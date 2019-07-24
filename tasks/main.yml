@@ -1,0 +1,43 @@
+---
+# tasks file for zabbix-smartctl run for hardware machines only
+- name: "Do work for smartmontools template"
+  block:
+  - name: "Install smartmontools"
+    package:
+      name: smartmontools
+      state: latest
+  - name: "Copy sudoers file"
+    copy:
+      src: sudoers_zabbix_smartctl
+      dest: /etc/sudoers.d/sudoers_zabbix_smartctl
+  - name: "Copy agent config"
+    copy:
+      src: zabbix_smartctl.conf
+      dest: /etc/zabbix/zabbix_agentd.d/zabbix_smartctl.conf
+    notify: "Restart zabbix-agent"
+  - name: "Create scripts directory"
+    file: 
+      path: /etc/zabbix/scripts
+      state: directory
+  - name: "Copy script"
+    copy:
+      src: smartctl-disks-discovery.pl
+      dest: /etc/zabbix/scripts/smartctl-disks-discovery.pl
+  - name: "Ensure script is executable"
+    file: dest=/etc/zabbix/scripts/smartctl-disks-discovery.pl mode=a+x
+  - name: "Create a new host or update an existing host's info"
+    zabbix_host:
+      server_url: "{{ zabbix_url }}"
+      login_user: "{{ zabbix_api_user }}"
+      login_password: "{{ zabbix_api_pass }}"
+      host_name: "{{ inventory_hostname }}"
+      force: no
+      link_templates: "Template_HDD_SMARTMONTOOLS_2_WITH_LLD"
+    when:
+      - zabbix_api_create_hosts | bool
+    delegate_to: localhost
+    become: no
+    changed_when: false
+    tags:
+      - api
+  when: ansible_facts['system'] == "Linux" and ansible_facts['virtualization_role'] != "guest"
